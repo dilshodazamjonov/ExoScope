@@ -1,0 +1,1400 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ExoScope — Live Exoplanet Viewer</title>
+  <style>
+    :root{
+      --bg:#0b1020;
+      --panel:#0f1724;
+      --accent:#6ee7b7;
+      --accent-hover:#5dd4a4;
+      --muted:#9aa6bf;
+      --success:#10b981;
+      --warning:#f59e0b;
+      --error:#ef4444;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial}
+    body{background:linear-gradient(180deg,#02040a 0%, #071828 60%);color:#e6eef8;overflow:hidden}
+    
+    #permissionScreen{
+      position:fixed;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:linear-gradient(180deg,#02040a 0%, #071828 60%);
+      z-index:2000;
+      padding:20px;
+    }
+    #permissionScreen.hidden{display:none}
+    
+    .permission-card{
+      max-width:500px;
+      width:100%;
+      background:rgba(15,23,36,0.95);
+      padding:40px;
+      border-radius:20px;
+      border:1px solid rgba(110,231,183,0.2);
+      box-shadow:0 20px 80px rgba(0,0,0,0.8);
+      text-align:center;
+    }
+    
+    .permission-icon{
+      font-size:64px;
+      margin-bottom:20px;
+      animation:float 3s ease-in-out infinite;
+    }
+    @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+    
+    .permission-card h1{
+      font-size:28px;
+      margin:0 0 12px 0;
+      color:var(--accent);
+    }
+    
+    .permission-card p{
+      color:var(--muted);
+      margin:0 0 30px 0;
+      line-height:1.6;
+    }
+    
+    .permission-list{
+      text-align:left;
+      margin:30px 0;
+      background:rgba(0,0,0,0.3);
+      padding:20px;
+      border-radius:12px;
+    }
+    
+    .permission-item{
+      display:flex;
+      align-items:center;
+      gap:15px;
+      margin:15px 0;
+      padding:12px;
+      background:rgba(255,255,255,0.03);
+      border-radius:8px;
+      transition:all 0.3s ease;
+    }
+    
+    .permission-item.granted{
+      background:rgba(16,185,129,0.1);
+      border:1px solid rgba(16,185,129,0.3);
+    }
+    
+    .permission-item.denied{
+      background:rgba(239,68,68,0.1);
+      border:1px solid rgba(239,68,68,0.3);
+    }
+    
+    .permission-status{
+      width:24px;
+      height:24px;
+      border-radius:50%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:14px;
+      flex-shrink:0;
+    }
+    
+    .permission-status.pending{background:rgba(245,158,11,0.2);color:var(--warning)}
+    .permission-status.granted{background:rgba(16,185,129,0.2);color:var(--success)}
+    .permission-status.denied{background:rgba(239,68,68,0.2);color:var(--error)}
+    
+    .permission-text{flex:1}
+    .permission-label{font-weight:600;display:block;margin-bottom:4px}
+    .permission-desc{font-size:12px;color:var(--muted)}
+    
+    .btn-primary{
+      background:var(--accent);
+      color:#02101a;
+      border:none;
+      padding:16px 32px;
+      border-radius:12px;
+      font-weight:700;
+      font-size:16px;
+      cursor:pointer;
+      transition:all 0.3s ease;
+      width:100%;
+      margin-top:10px;
+    }
+    .btn-primary:hover:not(:disabled){
+      background:var(--accent-hover);
+      transform:translateY(-2px);
+      box-shadow:0 8px 20px rgba(110,231,183,0.4);
+    }
+    .btn-primary:disabled{
+      opacity:0.5;
+      cursor:not-allowed;
+      transform:none;
+    }
+    
+    .error-message{
+      margin-top:20px;
+      padding:12px;
+      background:rgba(239,68,68,0.1);
+      border:1px solid rgba(239,68,68,0.3);
+      border-radius:8px;
+      color:var(--error);
+      font-size:14px;
+      display:none;
+    }
+    .error-message.show{display:block}
+    
+    #app{
+      display:grid;
+      grid-template-columns:1fr 380px;
+      gap:20px;
+      height:100vh;
+      padding:20px;
+      opacity:0;
+      transition:opacity 0.5s ease;
+    }
+    #app.visible{opacity:1}
+    
+    .canvas-wrap{
+      position:relative;
+      border-radius:16px;
+      background:radial-gradient(ellipse at center,#071a2b 0%,#02101a 60%);
+      box-shadow:0 8px 50px rgba(2,8,23,0.8);
+      overflow:hidden;
+      transition:all 0.3s ease;
+    }
+    .canvas-wrap:hover{box-shadow:0 12px 60px rgba(110,231,183,0.1)}
+    
+    canvas{width:100%;height:100%;display:block}
+    
+    .top-bar{
+      position:absolute;
+      left:16px;
+      top:16px;
+      padding:12px 16px;
+      background:rgba(6,10,20,0.85);
+      backdrop-filter:blur(12px);
+      border-radius:12px;
+      border:1px solid rgba(110,231,183,0.1);
+      transition:all 0.3s ease;
+    }
+    .top-bar:hover{background:rgba(6,10,20,0.95);border-color:rgba(110,231,183,0.3)}
+    
+    .logo{display:flex;gap:12px;align-items:center}
+    .logo strong{font-size:16px;color:var(--accent)}
+    
+    .controls{
+      padding:20px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,0.05);
+      overflow-y:auto;
+      max-height:100%;
+    }
+    
+    h1{margin:0 0 16px 0;font-size:20px;font-weight:700}
+    h2{font-size:15px;margin:20px 0 12px 0;font-weight:600;color:var(--accent)}
+    
+    .btn-group{display:flex;gap:10px;margin-bottom:16px}
+    button{
+      flex:1;
+      background:var(--accent);
+      color:#02101a;
+      border:none;
+      padding:12px 16px;
+      border-radius:10px;
+      font-weight:600;
+      cursor:pointer;
+      font-size:14px;
+      transition:all 0.2s ease;
+    }
+    button:hover:not(:disabled){background:var(--accent-hover);transform:translateY(-2px);box-shadow:0 4px 12px rgba(110,231,183,0.3)}
+    button:active{transform:translateY(0)}
+    button:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+    
+    button.secondary{background:rgba(255,255,255,0.1);color:var(--accent)}
+    button.secondary:hover{background:rgba(255,255,255,0.15)}
+    
+    .slider-group{margin:16px 0;position:relative}
+    .slider-group.manual-mode::before{
+      content:'🖱️ Manual';
+      position:absolute;
+      right:0;
+      top:0;
+      font-size:10px;
+      background:rgba(245,158,11,0.2);
+      color:var(--warning);
+      padding:2px 6px;
+      border-radius:4px;
+      font-weight:600;
+    }
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:8px;font-weight:500}
+    .slider-container{position:relative}
+    input[type=range]{
+      width:100%;
+      height:6px;
+      border-radius:3px;
+      background:rgba(255,255,255,0.1);
+      outline:none;
+      -webkit-appearance:none;
+    }
+    input[type=range]::-webkit-slider-thumb{
+      -webkit-appearance:none;
+      width:18px;
+      height:18px;
+      border-radius:50%;
+      background:var(--accent);
+      cursor:pointer;
+      transition:all 0.2s ease;
+    }
+    input[type=range]::-webkit-slider-thumb:hover{
+      transform:scale(1.2);
+      box-shadow:0 0 12px var(--accent);
+    }
+    input[type=range]::-moz-range-thumb{
+      width:18px;
+      height:18px;
+      border-radius:50%;
+      background:var(--accent);
+      cursor:pointer;
+      border:none;
+    }
+    .slider-value{
+      position:absolute;
+      right:0;
+      top:-24px;
+      background:var(--accent);
+      color:#02101a;
+      padding:2px 8px;
+      border-radius:6px;
+      font-size:12px;
+      font-weight:600;
+    }
+    
+    .coords-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+      margin:16px 0;
+    }
+    .coord-item{
+      background:rgba(255,255,255,0.05);
+      padding:10px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.08);
+    }
+    .coord-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px}
+    .coord-value{font-size:16px;font-weight:600;margin-top:4px;color:var(--accent)}
+    
+    .status-bar{
+      margin:16px 0;
+      padding:12px;
+      background:rgba(110,231,183,0.1);
+      border-left:3px solid var(--accent);
+      border-radius:8px;
+      font-size:13px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      transition:all 0.3s ease;
+    }
+    .status-bar.loading{background:rgba(245,158,11,0.1);border-color:var(--warning)}
+    .status-bar.error{background:rgba(239,68,68,0.1);border-color:var(--error)}
+    .status-dot{
+      width:8px;
+      height:8px;
+      border-radius:50%;
+      background:var(--accent);
+      animation:pulse 2s infinite;
+    }
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+    
+    .list{margin-top:12px;max-height:calc(100vh - 600px);overflow:auto;padding-right:6px}
+    .list::-webkit-scrollbar{width:6px}
+    .list::-webkit-scrollbar-track{background:rgba(255,255,255,0.05);border-radius:3px}
+    .list::-webkit-scrollbar-thumb{background:var(--accent);border-radius:3px}
+    
+    .planet-card{
+      padding:16px;
+      border-radius:12px;
+      background:linear-gradient(135deg, rgba(110,231,183,0.05) 0%, rgba(110,231,183,0.02) 100%);
+      border:1px solid rgba(110,231,183,0.15);
+      margin-bottom:12px;
+      cursor:pointer;
+      transition:all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position:relative;
+      overflow:hidden;
+      box-shadow:0 2px 8px rgba(0,0,0,0.2);
+    }
+    .planet-card::before{
+      content:'';
+      position:absolute;
+      top:0;
+      left:0;
+      width:4px;
+      height:100%;
+      background:linear-gradient(180deg, var(--accent) 0%, #5dd4a4 100%);
+      transform:scaleY(0);
+      transition:transform 0.3s ease;
+    }
+    .planet-card::after{
+      content:'';
+      position:absolute;
+      inset:0;
+      background:radial-gradient(circle at top right, rgba(110,231,183,0.1) 0%, transparent 70%);
+      opacity:0;
+      transition:opacity 0.3s ease;
+    }
+    .planet-card:hover{
+      background:linear-gradient(135deg, rgba(110,231,183,0.12) 0%, rgba(110,231,183,0.06) 100%);
+      border-color:rgba(110,231,183,0.4);
+      transform:translateX(6px) translateY(-2px);
+      box-shadow:0 8px 24px rgba(110,231,183,0.2);
+    }
+    .planet-card:hover::before{transform:scaleY(1)}
+    .planet-card:hover::after{opacity:1}
+    
+    .planet-name{
+      font-weight:700;
+      margin-bottom:8px;
+      color:#fff;
+      font-size:15px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    .planet-name::before{
+      content:'🪐';
+      font-size:18px;
+    }
+    .planet-details{
+      display:grid;
+      grid-template-columns:1fr auto;
+      gap:12px;
+      align-items:center;
+    }
+    .planet-coords{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+    .coord-row{
+      display:flex;
+      gap:12px;
+      font-size:11px;
+      color:var(--muted);
+    }
+    .coord-badge{
+      background:rgba(255,255,255,0.08);
+      padding:2px 6px;
+      border-radius:4px;
+      font-family:'Courier New',monospace;
+    }
+    .small{font-size:12px;color:var(--muted)}
+    .planet-distance{
+      font-size:14px;
+      color:var(--accent);
+      font-weight:700;
+      background:rgba(110,231,183,0.15);
+      padding:6px 12px;
+      border-radius:8px;
+      white-space:nowrap;
+    }
+    
+    .empty-state{
+      text-align:center;
+      padding:40px 20px;
+      color:var(--muted);
+    }
+    .empty-state-icon{font-size:48px;margin-bottom:12px;opacity:0.5}
+    
+    .footer{
+      position:absolute;
+      right:16px;
+      bottom:16px;
+      color:var(--muted);
+      font-size:11px;
+      background:rgba(6,10,20,0.7);
+      padding:8px 12px;
+      border-radius:8px;
+      backdrop-filter:blur(8px);
+    }
+    
+    .modal{
+      position:fixed;
+      inset:0;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      background:rgba(0,0,0,0.7);
+      backdrop-filter:blur(4px);
+      z-index:1000;
+    }
+    .modal.show{display:flex}
+    
+    .modal-card{
+      width:90%;
+      max-width:800px;
+      background:var(--panel);
+      padding:24px;
+      border-radius:16px;
+      box-shadow:0 20px 80px rgba(0,0,0,0.8);
+      border:1px solid rgba(110,231,183,0.2);
+      max-height:90vh;
+      overflow:auto;
+    }
+    
+    .modal-header{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:20px;
+      padding-bottom:16px;
+      border-bottom:1px solid rgba(255,255,255,0.1);
+    }
+    .modal-title{font-size:24px;font-weight:700;color:var(--accent)}
+    .modal-body{
+      white-space:pre-wrap;
+      color:#dbeefc;
+      font-family:'Courier New',monospace;
+      font-size:13px;
+      line-height:1.6;
+      background:rgba(0,0,0,0.3);
+      padding:16px;
+      border-radius:8px;
+      overflow:auto;
+    }
+    
+    .spinner{
+      display:inline-block;
+      width:14px;
+      height:14px;
+      border:2px solid rgba(110,231,183,0.3);
+      border-top-color:var(--accent);
+      border-radius:50%;
+      animation:spin 0.8s linear infinite;
+    }
+    @keyframes spin{to{transform:rotate(360deg)}}
+    
+    @media(max-width:1024px){
+      #app{grid-template-columns:1fr;grid-template-rows:1fr auto;max-height:100vh}
+      .controls{max-height:40vh}
+      .list{max-height:20vh}
+    }
+  </style>
+</head>
+<body>
+  <div id="permissionScreen">
+    <div class="permission-card">
+      <div class="permission-icon">🔭</div>
+      <h1>Welcome to ExoScope</h1>
+      <p>To discover exoplanets in real-time, we need access to your device sensors.</p>
+      
+      <div class="permission-list">
+        <div class="permission-item" id="locationItem">
+          <div class="permission-status pending" id="locationStatus">⏳</div>
+          <div class="permission-text">
+            <span class="permission-label">Location Access</span>
+            <span class="permission-desc">Required to calculate celestial coordinates</span>
+          </div>
+        </div>
+        
+        <div class="permission-item" id="orientationItem">
+          <div class="permission-status pending" id="orientationStatus">⏳</div>
+          <div class="permission-text">
+            <span class="permission-label">Device Orientation</span>
+            <span class="permission-desc">Required to track where you're pointing</span>
+          </div>
+        </div>
+      </div>
+      
+      <button class="btn-primary" id="requestPermissionsBtn">
+        Enable Sensors & Start
+      </button>
+      
+      <div class="error-message" id="errorMessage"></div>
+    </div>
+  </div>
+
+  <div id="app">
+    <div class="canvas-wrap">
+      <div class="top-bar">
+        <div class="logo">
+          <strong>🔭 ExoScope</strong>
+          <span class="small">Live Exoplanet Discovery</span>
+        </div>
+      </div>
+      <div id="threeRoot" style="position:absolute;inset:0"></div>
+      <div class="footer">💡 Drag to look around • Scroll to zoom • Planets appear in view</div>
+    </div>
+
+    <div class="controls">
+      <h1>🎯 Control Center</h1>
+      
+      <div class="btn-group">
+        <button id="scanBtn">
+          <span id="scanBtnText">🔍 Scan Sky</span>
+        </button>
+        <button id="centerBtn" class="secondary">⟲ Reset View</button>
+      </div>
+
+      <div class="slider-group">
+        <label>Field of View</label>
+        <div class="slider-container">
+          <span class="slider-value" id="fovValue">30°</span>
+          <input id="fov" type="range" min="2" max="60" value="30" />
+        </div>
+      </div>
+
+      <div class="slider-group">
+        <label>Manual Azimuth (Desktop Mode) <span class="small">— Compass direction</span></label>
+        <div class="slider-container">
+          <span class="slider-value" id="azManualValue">0°</span>
+          <input id="azManual" type="range" min="0" max="360" value="0" />
+        </div>
+      </div>
+
+      <div class="slider-group">
+        <label>Manual Altitude (Desktop Mode) <span class="small">— Vertical angle</span></label>
+        <div class="slider-container">
+          <span class="slider-value" id="altManualValue">45°</span>
+          <input id="altManual" type="range" min="-90" max="90" value="45" />
+        </div>
+      </div>
+
+      <div class="coords-grid">
+        <div class="coord-item">
+          <div class="coord-label">Latitude</div>
+          <div class="coord-value" id="lat">—</div>
+        </div>
+        <div class="coord-item">
+          <div class="coord-label">Longitude</div>
+          <div class="coord-value" id="lon">—</div>
+        </div>
+        <div class="coord-item">
+          <div class="coord-label">Azimuth</div>
+          <div class="coord-value" id="az">—</div>
+        </div>
+        <div class="coord-item">
+          <div class="coord-label">Altitude</div>
+          <div class="coord-value" id="alt">—</div>
+        </div>
+      </div>
+
+      <div class="status-bar" id="statusBar">
+        <span class="status-dot"></span>
+        <span id="status">Ready to scan</span>
+      </div>
+
+      <h2>🪐 Discovered Exoplanets (<span id="planetCount">0</span>)</h2>
+      <div class="list" id="planetList">
+        <div class="empty-state">
+          <div class="empty-state-icon">🌌</div>
+          <div>Point your device at the sky and tap "Scan Sky" to discover exoplanets</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal" class="modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title" id="modalTitle">Planet Details</div>
+        <button id="closeModal">✕ Close</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/three@0.155.0/build/three.min.js"></script>
+  <script>
+  const BACKEND_URL = 'http://127.0.0.1:8000';
+
+  const permissions = {
+    location: false,
+    orientation: false
+  };
+
+  const state = {
+    lat: null,
+    lon: null,
+    az: 0,
+    alt: 45,
+    fov: 30,
+    planets: [],
+    isScanning: false,
+    orientationSensor: null,
+    useManualOrientation: false
+  };
+
+  // Permission Screen Elements
+  const permissionScreen = document.getElementById('permissionScreen');
+  const requestPermissionsBtn = document.getElementById('requestPermissionsBtn');
+  const locationItem = document.getElementById('locationItem');
+  const locationStatus = document.getElementById('locationStatus');
+  const orientationItem = document.getElementById('orientationItem');
+  const orientationStatus = document.getElementById('orientationStatus');
+  const errorMessage = document.getElementById('errorMessage');
+
+  // App Elements
+  const app = document.getElementById('app');
+  const statusEl = document.getElementById('status');
+  const statusBar = document.getElementById('statusBar');
+  const latEl = document.getElementById('lat');
+  const lonEl = document.getElementById('lon');
+  const azEl = document.getElementById('az');
+  const altEl = document.getElementById('alt');
+  const planetList = document.getElementById('planetList');
+  const planetCount = document.getElementById('planetCount');
+  const fovInput = document.getElementById('fov');
+  const fovValue = document.getElementById('fovValue');
+  const azManualInput = document.getElementById('azManual');
+  const azManualValue = document.getElementById('azManualValue');
+  const altManualInput = document.getElementById('altManual');
+  const altManualValue = document.getElementById('altManualValue');
+  const scanBtn = document.getElementById('scanBtn');
+  const scanBtnText = document.getElementById('scanBtnText');
+  const centerBtn = document.getElementById('centerBtn');
+  const modal = document.getElementById('modal');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalBody = document.getElementById('modalBody');
+
+  const azSliderGroup = azManualInput.closest('.slider-group');
+  const altSliderGroup = altManualInput.closest('.slider-group');
+
+  function updatePermissionStatus(type, status) {
+    const item = type === 'location' ? locationItem : orientationItem;
+    const statusEl = type === 'location' ? locationStatus : orientationStatus;
+    
+    statusEl.className = 'permission-status ' + status;
+    
+    if(status === 'granted') {
+      statusEl.textContent = '✓';
+      item.classList.add('granted');
+      permissions[type] = true;
+    } else if(status === 'denied') {
+      statusEl.textContent = '✗';
+      item.classList.add('denied');
+      permissions[type] = false;
+    }
+    
+    if(permissions.location && permissions.orientation) {
+      setTimeout(() => {
+        permissionScreen.classList.add('hidden');
+        app.classList.add('visible');
+        initThreeJS();
+      }, 1000);
+    }
+  }
+
+  function showError(message) {
+    errorMessage.textContent = message;
+    errorMessage.classList.add('show');
+  }
+
+  async function requestLocation() {
+    console.log('Requesting location...');
+    try {
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        });
+      });
+      
+      state.lat = position.coords.latitude;
+      state.lon = position.coords.longitude;
+      latEl.textContent = state.lat.toFixed(4) + '°';
+      lonEl.textContent = state.lon.toFixed(4) + '°';
+      
+      console.log('Location granted:', state.lat, state.lon);
+      updatePermissionStatus('location', 'granted');
+      return true;
+    } catch(error) {
+      console.error('Location error:', error);
+      updatePermissionStatus('location', 'denied');
+      showError('Location access denied. Please enable location in your browser settings.');
+      return false;
+    }
+  }
+
+  async function requestOrientation() {
+    console.log('Requesting orientation...');
+    
+    if(typeof DeviceOrientationEvent !== 'undefined' && 
+       typeof DeviceOrientationEvent.requestPermission === 'function') {
+      try {
+        const permission = await DeviceOrientationEvent.requestPermission();
+        if(permission === 'granted') {
+          setupOrientationListener();
+          updatePermissionStatus('orientation', 'granted');
+          return true;
+        } else {
+          updatePermissionStatus('orientation', 'denied');
+          showError('Orientation permission denied.');
+          return false;
+        }
+      } catch(error) {
+        console.error('Orientation permission error:', error);
+        updatePermissionStatus('orientation', 'denied');
+        return false;
+      }
+    }
+    
+    if('AbsoluteOrientationSensor' in window) {
+      try {
+        const sensor = new AbsoluteOrientationSensor({ frequency: 30 });
+        state.orientationSensor = sensor;
+        
+        sensor.addEventListener('reading', () => {
+          if(state.useManualOrientation) return;
+          
+          const q = sensor.quaternion;
+          const [x, y, z, w] = q;
+          
+          const vx = 2 * (x * z + w * y);
+          const vy = 2 * (y * z - w * x);
+          const vz = w * w - x * x - y * y + z * z;
+          
+          let az = Math.atan2(vx, vy) * 180 / Math.PI;
+          if(az < 0) az += 360;
+          const alt = Math.asin(Math.max(-1, Math.min(1, vz))) * 180 / Math.PI;
+          
+          state.az = az;
+          state.alt = alt;
+          azEl.textContent = az.toFixed(1) + '°';
+          altEl.textContent = alt.toFixed(1) + '°';
+          
+          azManualInput.value = az;
+          azManualValue.textContent = az.toFixed(1) + '°';
+          altManualInput.value = alt;
+          altManualValue.textContent = alt.toFixed(1) + '°';
+        });
+        
+        sensor.addEventListener('error', (e) => {
+          console.error('Sensor error:', e);
+          setupOrientationListener();
+        });
+        
+        await sensor.start();
+        console.log('Orientation sensor started');
+        updatePermissionStatus('orientation', 'granted');
+        return true;
+      } catch(error) {
+        console.error('Sensor API error:', error);
+        setupOrientationListener();
+        updatePermissionStatus('orientation', 'granted');
+        return true;
+      }
+    }
+    
+    setupOrientationListener();
+    updatePermissionStatus('orientation', 'granted');
+    return true;
+  }
+
+  function setupOrientationListener() {
+    console.log('Setting up DeviceOrientation listener');
+    let hasData = false;
+    
+    const handler = (event) => {
+      if(state.useManualOrientation) return;
+      
+      if(event.alpha === null || event.beta === null || event.gamma === null) {
+        if(!hasData) {
+          console.warn('No orientation data available - using manual controls');
+          state.useManualOrientation = true;
+        }
+        return;
+      }
+      
+      hasData = true;
+      const screen = (window.screen.orientation?.angle) || 0;
+      let heading = (event.alpha + screen + 360) % 360;
+      let alt = 90 - Math.abs(event.beta);
+      
+      state.az = heading;
+      state.alt = alt;
+      azEl.textContent = heading.toFixed(1) + '°';
+      altEl.textContent = alt.toFixed(1) + '°';
+      
+      azManualInput.value = heading;
+      azManualValue.textContent = heading.toFixed(1) + '°';
+      altManualInput.value = alt;
+      altManualValue.textContent = alt.toFixed(1) + '°';
+    };
+    
+    window.addEventListener('deviceorientation', handler, true);
+    
+    setTimeout(() => {
+      if(!hasData) {
+        console.log('Using manual orientation controls');
+        state.useManualOrientation = true;
+        azEl.textContent = '0.0°';
+        altEl.textContent = '45.0°';
+      }
+    }, 2000);
+  }
+
+  requestPermissionsBtn.addEventListener('click', async () => {
+    requestPermissionsBtn.disabled = true;
+    requestPermissionsBtn.textContent = 'Requesting permissions...';
+    errorMessage.classList.remove('show');
+    
+    const locationOk = await requestLocation();
+    const orientationOk = await requestOrientation();
+    
+    if(!locationOk || !orientationOk) {
+      requestPermissionsBtn.disabled = false;
+      requestPermissionsBtn.textContent = 'Retry';
+      if(!locationOk && !orientationOk) {
+        showError('Both permissions denied. Please enable them in browser settings and retry.');
+      }
+    }
+  });
+
+  let scene, camera, renderer, dome, stars, markers;
+
+  function initThreeJS() {
+    const container = document.getElementById('threeRoot');
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
+    camera.position.set(0, 0, 0.1);
+    
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(renderer.domElement);
+    
+    let isDragging = false;
+    let previousMousePosition = { x: 0, y: 0 };
+    
+    renderer.domElement.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      previousMousePosition = { x: e.clientX, y: e.clientY };
+    });
+    
+    renderer.domElement.addEventListener('mousemove', (e) => {
+      if(!isDragging) return;
+      
+      const deltaX = e.clientX - previousMousePosition.x;
+      const deltaY = e.clientY - previousMousePosition.y;
+      
+      camera.rotation.y += deltaX * 0.005;
+      camera.rotation.x += deltaY * 0.005;
+      camera.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, camera.rotation.x));
+      
+      previousMousePosition = { x: e.clientX, y: e.clientY };
+    });
+    
+    renderer.domElement.addEventListener('mouseup', () => {
+      isDragging = false;
+    });
+    
+    renderer.domElement.addEventListener('mouseleave', () => {
+      isDragging = false;
+    });
+    
+    let touchStartPos = { x: 0, y: 0 };
+    
+    renderer.domElement.addEventListener('touchstart', (e) => {
+      if(e.touches.length === 1) {
+        touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }
+    });
+    
+    renderer.domElement.addEventListener('touchmove', (e) => {
+      if(e.touches.length === 1) {
+        const deltaX = e.touches[0].clientX - touchStartPos.x;
+        const deltaY = e.touches[0].clientY - touchStartPos.y;
+        
+        camera.rotation.y += deltaX * 0.005;
+        camera.rotation.x += deltaY * 0.005;
+        camera.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, camera.rotation.x));
+        
+        touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }
+    });
+
+    const domeGeom = new THREE.SphereGeometry(400, 32, 32);
+    const domeMat = new THREE.MeshBasicMaterial({ color: 0x071a2b, side: THREE.BackSide });
+    dome = new THREE.Mesh(domeGeom, domeMat);
+    scene.add(dome);
+
+    const starsGeom = new THREE.BufferGeometry();
+    const starPositions = [];
+    for(let i = 0; i < 1000; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = 380 + Math.random() * 10;
+      starPositions.push(
+        r * Math.sin(phi) * Math.cos(theta),
+        r * Math.sin(phi) * Math.sin(theta),
+        r * Math.cos(phi)
+      );
+    }
+    starsGeom.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
+    const starsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 1.5, transparent: true, opacity: 0.7 });
+    stars = new THREE.Points(starsGeom, starsMat);
+    scene.add(stars);
+
+    markers = new THREE.Group();
+    scene.add(markers);
+    
+    const crosshairGeo = new THREE.BufferGeometry();
+    const crosshairPositions = [
+      -5, 0, -100,  5, 0, -100,
+      0, -5, -100,  0, 5, -100,
+    ];
+    crosshairGeo.setAttribute('position', new THREE.Float32BufferAttribute(crosshairPositions, 3));
+    const crosshairMat = new THREE.LineBasicMaterial({ color: 0x6ee7b7, transparent: true, opacity: 0.3 });
+    const crosshair = new THREE.LineSegments(crosshairGeo, crosshairMat);
+    scene.add(crosshair);
+    
+    const fovCircleGeo = new THREE.CircleGeometry(20, 32);
+    fovCircleGeo.deleteAttribute('uv');
+    const fovEdgesGeo = new THREE.EdgesGeometry(fovCircleGeo);
+    const fovCircleMat = new THREE.LineBasicMaterial({ color: 0x6ee7b7, transparent: true, opacity: 0.2 });
+    const fovCircle = new THREE.LineSegments(fovEdgesGeo, fovCircleMat);
+    fovCircle.position.set(0, 0, -100);
+    scene.add(fovCircle);
+
+    window.addEventListener('resize', () => {
+      camera.aspect = container.clientWidth / container.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(container.clientWidth, container.clientHeight);
+    });
+
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    renderer.domElement.addEventListener('pointerdown', (ev) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(markers.children, true);
+      if(intersects.length) {
+        let obj = intersects[0].object;
+        while(obj.parent && !obj.userData.name) obj = obj.parent;
+        if(obj.userData?.name) fetchPlanetInfo(obj.userData.name);
+      }
+    });
+
+    animate();
+    updateStatus('All systems ready! Point at the sky and scan.', 'success');
+  }
+
+  function animate() {
+    requestAnimationFrame(animate);
+    if(stars) stars.rotation.y += 0.0001;
+    if(markers) {
+      markers.children.forEach(m => {
+        if(m.userData.animate) m.userData.animate();
+      });
+    }
+    if(renderer && scene && camera) renderer.render(scene, camera);
+  }
+
+  function azAltToVector(azDeg, altDeg) {
+    const az = azDeg * Math.PI / 180;
+    const alt = altDeg * Math.PI / 180;
+    const x = Math.sin(az) * Math.cos(alt);
+    const y = Math.sin(alt);
+    const z = Math.cos(az) * Math.cos(alt);
+    return new THREE.Vector3(x, y, -z).normalize();
+  }
+
+  function createMarker(name, distance) {
+    const group = new THREE.Group();
+    
+    const colors = [
+      0x4a9eff, 0xff6b4a, 0xffd24a, 0x8b4aff, 0x4affbd, 0xff4a9e
+    ];
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    
+    const planetGeo = new THREE.SphereGeometry(3.5, 32, 32);
+    const planetMat = new THREE.MeshBasicMaterial({ 
+      color: color,
+      transparent: true,
+      opacity: 0.95
+    });
+    const planet = new THREE.Mesh(planetGeo, planetMat);
+    group.add(planet);
+    
+    const atmoGeo = new THREE.SphereGeometry(4.2, 32, 32);
+    const atmoMat = new THREE.MeshBasicMaterial({
+      color: color,
+      transparent: true,
+      opacity: 0.4,
+      side: THREE.BackSide
+    });
+    const atmosphere = new THREE.Mesh(atmoGeo, atmoMat);
+    group.add(atmosphere);
+    
+    const glowGeo = new THREE.SphereGeometry(5.5, 32, 32);
+    const glowMat = new THREE.MeshBasicMaterial({
+      color: color,
+      transparent: true,
+      opacity: 0.15,
+      side: THREE.BackSide
+    });
+    const glow = new THREE.Mesh(glowGeo, glowMat);
+    group.add(glow);
+    
+    const particleCount = 50;
+    const particleGeo = new THREE.BufferGeometry();
+    const particlePositions = [];
+    
+    for(let i = 0; i < particleCount; i++) {
+      const radius = 6 + Math.random() * 3;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.random() * Math.PI;
+      
+      particlePositions.push(
+        radius * Math.sin(phi) * Math.cos(theta),
+        radius * Math.sin(phi) * Math.sin(theta),
+        radius * Math.cos(phi)
+      );
+    }
+    
+    particleGeo.setAttribute('position', new THREE.Float32BufferAttribute(particlePositions, 3));
+    const particleMat = new THREE.PointsMaterial({
+      color: color,
+      size: 0.4,
+      transparent: true,
+      opacity: 0.6,
+      blending: THREE.AdditiveBlending
+    });
+    const particles = new THREE.Points(particleGeo, particleMat);
+    group.add(particles);
+    
+    if(Math.random() > 0.7) {
+      const ringGeo = new THREE.RingGeometry(4.5, 6.5, 32);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: 0.3,
+        side: THREE.DoubleSide
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.rotation.x = Math.PI / 2 + (Math.random() - 0.5) * 0.5;
+      group.add(ring);
+      group.userData.ring = ring;
+    }
+    
+    if(Math.random() > 0.8) {
+      const moonGeo = new THREE.SphereGeometry(0.8, 16, 16);
+      const moonMat = new THREE.MeshBasicMaterial({
+        color: 0xaaaaaa,
+        transparent: true,
+        opacity: 0.9
+      });
+      const moon = new THREE.Mesh(moonGeo, moonMat);
+      moon.position.set(8, 0, 0);
+      group.add(moon);
+      group.userData.moon = moon;
+    }
+    
+    group.userData = { name, distance, color, particles };
+    
+    let scale = 1;
+    let growing = true;
+    let rotation = 0;
+    let moonOrbit = 0;
+    
+    group.userData.animate = () => {
+      if(growing) {
+        scale += 0.005;
+        if(scale >= 1.08) growing = false;
+      } else {
+        scale -= 0.005;
+        if(scale <= 0.95) growing = true;
+      }
+      planet.scale.setScalar(scale);
+      atmosphere.scale.setScalar(scale * 1.05);
+      
+      rotation += 0.01;
+      planet.rotation.y = rotation;
+      
+      particles.rotation.y = rotation * 0.5;
+      particles.rotation.x = rotation * 0.3;
+      
+      glow.material.opacity = 0.1 + Math.sin(rotation * 2) * 0.08;
+      
+      if(group.userData.ring) {
+        group.userData.ring.rotation.z += 0.005;
+      }
+      
+      if(group.userData.moon) {
+        moonOrbit += 0.02;
+        group.userData.moon.position.x = Math.cos(moonOrbit) * 8;
+        group.userData.moon.position.z = Math.sin(moonOrbit) * 8;
+        group.userData.moon.position.y = Math.sin(moonOrbit * 0.5) * 2;
+      }
+    };
+    
+    return group;
+  }
+
+  function clearMarkers() {
+    if(markers) markers.clear();
+  }
+
+  function renderPlanets(planets) {
+    if(!scene || !markers) {
+      console.error('Scene not initialized yet');
+      updateStatus('3D scene not ready, please wait...', 'error');
+      return;
+    }
+    
+    clearMarkers();
+    
+    console.log('Rendering planets:', planets);
+    
+    if(planets.length === 0) {
+      updatePlanetList(planets);
+      return;
+    }
+    
+    planets.forEach(p => {
+      let az, alt;
+      
+      if(p.az !== undefined && p.alt !== undefined && p.az !== null && p.alt !== null) {
+        az = p.az;
+        alt = p.alt;
+        console.log(`Planet ${p.name}: using backend az=${az}, alt=${alt}`);
+      } else {
+        const spreadAngle = Math.min(state.fov, 20);
+        const offsetAz = (Math.random() - 0.5) * spreadAngle;
+        const offsetAlt = (Math.random() - 0.5) * spreadAngle;
+        
+        az = (state.az + offsetAz + 360) % 360;
+        alt = Math.max(-90, Math.min(90, state.alt + offsetAlt));
+        
+        console.log(`Planet ${p.name}: calculated az=${az.toFixed(1)}, alt=${alt.toFixed(1)}`);
+      }
+      
+      const v = azAltToVector(az, alt).multiplyScalar(380);
+      const m = createMarker(p.name, p.distance);
+      m.position.copy(v);
+      m.userData.az = az;
+      m.userData.alt = alt;
+      markers.add(m);
+      
+      console.log(`Planet ${p.name} position:`, v.x.toFixed(1), v.y.toFixed(1), v.z.toFixed(1));
+    });
+    
+    if(planets.length > 0 && camera) {
+      const firstPlanet = markers.children[0];
+      if(firstPlanet) {
+        const arrowHelper = new THREE.ArrowHelper(
+          firstPlanet.position.clone().normalize(),
+          new THREE.Vector3(0, 0, 0),
+          50, 0xffff00, 10, 5
+        );
+        scene.add(arrowHelper);
+        
+        setTimeout(() => {
+          scene.remove(arrowHelper);
+        }, 5000);
+        
+        camera.lookAt(firstPlanet.position);
+        console.log('Camera centered on first planet');
+        updateStatus(`Found ${planets.length} planet${planets.length > 1 ? 's' : ''}! Yellow arrow points to it.`, 'success');
+      }
+    }
+    
+    updatePlanetList(planets);
+  }
+
+  function updatePlanetList(planets) {
+    planetCount.textContent = planets.length;
+    planetList.innerHTML = '';
+    
+    if(planets.length === 0) {
+      planetList.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">🔭</div>
+          <div>No exoplanets found in this field of view. Try adjusting your direction or FOV.</div>
+        </div>
+      `;
+      return;
+    }
+    
+    planets.forEach(p => {
+      const el = document.createElement('div');
+      el.className = 'planet-card';
+      
+      const raVal = typeof p.ra === 'number' ? p.ra.toFixed(2) : (p.ra || '—');
+      const decVal = typeof p.dec === 'number' ? p.dec.toFixed(2) : (p.dec || '—');
+      const distVal = p.distance ? parseFloat(p.distance).toFixed(1) : 'Unknown';
+      
+      el.innerHTML = `
+        <div class="planet-name">${p.name}</div>
+        <div class="planet-details">
+          <div class="planet-coords">
+            <div class="coord-row">
+              <span class="coord-badge">RA: ${raVal}°</span>
+              <span class="coord-badge">Dec: ${decVal}°</span>
+            </div>
+          </div>
+          <div class="planet-distance">${distVal} ly</div>
+        </div>
+      `;
+      el.onclick = () => fetchPlanetInfo(p.name);
+      planetList.appendChild(el);
+    });
+  }
+
+  function updateStatus(text, type = 'success') {
+    statusEl.textContent = text;
+    statusBar.className = 'status-bar';
+    if(type === 'loading') statusBar.classList.add('loading');
+    if(type === 'error') statusBar.classList.add('error');
+  }
+
+  async function scanSky() {
+    if(state.isScanning) return;
+    
+    if(!state.lat || !state.lon) {
+      updateStatus('Location not available', 'error');
+      return;
+    }
+    
+    state.isScanning = true;
+    scanBtn.disabled = true;
+    scanBtnText.innerHTML = '<span class="spinner"></span> Scanning...';
+    updateStatus('Scanning sky for exoplanets...', 'loading');
+    
+    const payload = {
+      latitude: state.lat,
+      longitude: state.lon,
+      azimuth: state.az,
+      altitude: state.alt,
+      fov: parseFloat(state.fov)
+    };
+    
+    console.log('Scan payload:', payload);
+    
+    try {
+      const res = await fetch(BACKEND_URL + '/exoplanets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      if(!res.ok) {
+        const errorText = await res.text();
+        console.error('Backend error:', errorText);
+        throw new Error(`HTTP ${res.status}: ${errorText}`);
+      }
+      
+      const json = await res.json();
+      console.log('Backend response:', json);
+      
+      state.planets = json.results.map(p => ({
+        name: p.name,
+        ra: p.ra,
+        dec: p.dec,
+        distance: p.distance,
+        az: p.az,
+        alt: p.alt
+      }));
+      
+      renderPlanets(state.planets);
+    } catch(e) {
+      console.error('Scan error:', e);
+      updateStatus(`Scan failed: ${e.message}`, 'error');
+    } finally {
+      state.isScanning = false;
+      scanBtn.disabled = false;
+      scanBtnText.textContent = '🔍 Scan Sky';
+    }
+  }
+
+  async function fetchPlanetInfo(name) {
+    try {
+      modalTitle.textContent = name;
+      modalBody.textContent = 'Loading detailed information...';
+      modal.classList.add('show');
+      
+      const res = await fetch(BACKEND_URL + '/exoplanet/info?name=' + encodeURIComponent(name));
+      const info = await res.json();
+      modalBody.textContent = JSON.stringify(info, null, 2);
+    } catch(e) {
+      console.error(e);
+      modalBody.textContent = 'Failed to load planet information.';
+    }
+  }
+
+  fovInput.addEventListener('input', (e) => {
+    state.fov = parseFloat(e.target.value);
+    fovValue.textContent = state.fov + '°';
+  });
+
+  azManualInput.addEventListener('input', (e) => {
+    state.useManualOrientation = true;
+    state.az = parseFloat(e.target.value);
+    azManualValue.textContent = state.az.toFixed(1) + '°';
+    azEl.textContent = state.az.toFixed(1) + '°';
+    azSliderGroup.classList.add('manual-mode');
+  });
+
+  altManualInput.addEventListener('input', (e) => {
+    state.useManualOrientation = true;
+    state.alt = parseFloat(e.target.value);
+    altManualValue.textContent = state.alt.toFixed(1) + '°';
+    altEl.textContent = state.alt.toFixed(1) + '°';
+    altSliderGroup.classList.add('manual-mode');
+  });
+
+  scanBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    scanSky();
+  });
+  
+  centerBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    if(camera) {
+      camera.position.set(0, 0, 0.1);
+      camera.rotation.set(0, 0, 0);
+      camera.lookAt(0, 0, -1);
+      updateStatus('View reset to center', 'success');
+    }
+  });
+
+  document.getElementById('closeModal').onclick = () => modal.classList.remove('show');
+  modal.onclick = (e) => { if(e.target === modal) modal.classList.remove('show'); };
+
+  document.addEventListener('keydown', (e) => {
+    if(e.key === 's' || e.key === 'S') {
+      e.preventDefault();
+      scanSky();
+    }
+    if(e.key === 'r' || e.key === 'R') {
+      e.preventDefault();
+      if(camera) {
+        camera.position.set(0, 0, 0.1);
+        camera.lookAt(0, 0, -1);
+      }
+    }
+    if(e.key === 'Escape') {
+      modal.classList.remove('show');
+    }
+  });
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+

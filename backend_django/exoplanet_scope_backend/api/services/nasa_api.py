@@ -4,8 +4,7 @@ from utils.calculations import is_within_scope
 from functools import lru_cache
 
 # Path to your saved dataset file
-DATA_PATH = os.path.join(os.path.dirname(__file__), "../data/exoplanets_full.json")
-
+DATA_PATH = "D:\\python projects\\python\\NasaSpaceApps\\exoplanet_scope_backend\\backend_django\\exoplanet_scope_backend\\api\\services\\data\\exoplanets_full.json"
 @lru_cache(maxsize=1)
 def load_exoplanet_catalog():
     """
