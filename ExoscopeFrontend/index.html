@@ -178,11 +178,36 @@
       border-radius:12px;
       border:1px solid rgba(110,231,183,0.1);
       transition:all 0.3s ease;
+      display:flex;
+      gap:20px;
+      align-items:center;
     }
     .top-bar:hover{background:rgba(6,10,20,0.95);border-color:rgba(110,231,183,0.3)}
     
     .logo{display:flex;gap:12px;align-items:center}
     .logo strong{font-size:16px;color:var(--accent)}
+
+    .stats-mini{
+      display:flex;
+      gap:15px;
+      font-size:12px;
+    }
+    .stat-item{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+    }
+    .stat-value{
+      font-size:18px;
+      font-weight:700;
+      color:var(--accent);
+    }
+    .stat-label{
+      color:var(--muted);
+      font-size:10px;
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+    }
     
     .controls{
       padding:20px;
@@ -271,6 +296,28 @@
       font-size:12px;
       font-weight:600;
     }
+
+    .time-travel-section{
+      background:rgba(110,231,183,0.05);
+      padding:12px;
+      border-radius:8px;
+      border:1px solid rgba(110,231,183,0.15);
+      margin:16px 0;
+    }
+    .datetime-input{
+      width:100%;
+      padding:8px;
+      border-radius:6px;
+      border:1px solid rgba(255,255,255,0.2);
+      background:rgba(0,0,0,0.3);
+      color:#e6eef8;
+      font-size:13px;
+      margin-top:8px;
+    }
+    .datetime-input:focus{
+      outline:none;
+      border-color:var(--accent);
+    }
     
     .coords-grid{
       display:grid;
@@ -310,7 +357,7 @@
     }
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
     
-    .list{margin-top:12px;max-height:calc(100vh - 600px);overflow:auto;padding-right:6px}
+    .list{margin-top:12px;max-height:calc(100vh - 700px);overflow:auto;padding-right:6px}
     .list::-webkit-scrollbar{width:6px}
     .list::-webkit-scrollbar-track{background:rgba(255,255,255,0.05);border-radius:3px}
     .list::-webkit-scrollbar-thumb{background:var(--accent);border-radius:3px}
@@ -435,7 +482,7 @@
     
     .modal-card{
       width:90%;
-      max-width:800px;
+      max-width:900px;
       background:var(--panel);
       padding:24px;
       border-radius:16px;
@@ -455,15 +502,44 @@
     }
     .modal-title{font-size:24px;font-weight:700;color:var(--accent)}
     .modal-body{
-      white-space:pre-wrap;
       color:#dbeefc;
-      font-family:'Courier New',monospace;
       font-size:13px;
-      line-height:1.6;
+      line-height:1.8;
+    }
+
+    .planet-3d-preview{
+      width:200px;
+      height:200px;
+      margin:0 auto 20px;
+      border-radius:12px;
+      background:radial-gradient(circle, rgba(110,231,183,0.1) 0%, transparent 70%);
+      position:relative;
+      overflow:hidden;
+    }
+
+    .planet-info-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+      margin-top:20px;
+    }
+    .info-card{
       background:rgba(0,0,0,0.3);
-      padding:16px;
+      padding:12px;
       border-radius:8px;
-      overflow:auto;
+      border:1px solid rgba(255,255,255,0.1);
+    }
+    .info-label{
+      font-size:11px;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:0.5px;
+      margin-bottom:6px;
+    }
+    .info-value{
+      font-size:16px;
+      font-weight:600;
+      color:var(--accent);
     }
     
     .spinner{
@@ -524,9 +600,23 @@
           <strong>🔭 ExoScope</strong>
           <span class="small">Live Exoplanet Discovery</span>
         </div>
+        <div class="stats-mini">
+          <div class="stat-item">
+            <div class="stat-value" id="totalPlanetsDB">---</div>
+            <div class="stat-label">Total DB</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="confirmedPlanets">---</div>
+            <div class="stat-label">Confirmed</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="discoveredToday">0</div>
+            <div class="stat-label">Session</div>
+          </div>
+        </div>
       </div>
       <div id="threeRoot" style="position:absolute;inset:0"></div>
-      <div class="footer">💡 Drag to look around • Scroll to zoom • Planets appear in view</div>
+      <div class="footer">💡 Drag to look around • Scroll to zoom • Click planets • Press S to scan</div>
     </div>
 
     <div class="controls">
@@ -537,6 +627,15 @@
           <span id="scanBtnText">🔍 Scan Sky</span>
         </button>
         <button id="centerBtn" class="secondary">⟲ Reset View</button>
+      </div>
+
+      <div class="time-travel-section">
+        <label>⏰ Time Travel</label>
+        <input type="datetime-local" id="dateTimeInput" class="datetime-input" />
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="setTimeBtn" style="flex:1">Set Time</button>
+          <button id="resetTimeBtn" class="secondary" style="flex:1">Now</button>
+        </div>
       </div>
 
       <div class="slider-group">
@@ -603,6 +702,7 @@
         <div class="modal-title" id="modalTitle">Planet Details</div>
         <button id="closeModal">✕ Close</button>
       </div>
+      <div class="planet-3d-preview" id="planet3DPreview"></div>
       <div class="modal-body" id="modalBody"></div>
     </div>
   </div>
@@ -625,7 +725,9 @@
     planets: [],
     isScanning: false,
     orientationSensor: null,
-    useManualOrientation: false
+    useManualOrientation: false,
+    currentDateTime: new Date(),
+    sessionDiscovered: 0
   };
 
   // Permission Screen Elements
@@ -659,9 +761,20 @@
   const modal = document.getElementById('modal');
   const modalTitle = document.getElementById('modalTitle');
   const modalBody = document.getElementById('modalBody');
+  const dateTimeInput = document.getElementById('dateTimeInput');
+  const setTimeBtn = document.getElementById('setTimeBtn');
+  const resetTimeBtn = document.getElementById('resetTimeBtn');
+  const totalPlanetsDB = document.getElementById('totalPlanetsDB');
+  const confirmedPlanets = document.getElementById('confirmedPlanets');
+  const discoveredToday = document.getElementById('discoveredToday');
+  const planet3DPreview = document.getElementById('planet3DPreview');
 
   const azSliderGroup = azManualInput.closest('.slider-group');
   const altSliderGroup = altManualInput.closest('.slider-group');
+
+  // Initialize datetime input to current time
+  const now = new Date();
+  dateTimeInput.value = now.toISOString().slice(0, 16);
 
   function updatePermissionStatus(type, status) {
     const item = type === 'location' ? locationItem : orientationItem;
@@ -684,6 +797,7 @@
         permissionScreen.classList.add('hidden');
         app.classList.add('visible');
         initThreeJS();
+        fetchDatabaseStats();
       }, 1000);
     }
   }
@@ -691,6 +805,21 @@
   function showError(message) {
     errorMessage.textContent = message;
     errorMessage.classList.add('show');
+  }
+
+  async function fetchDatabaseStats() {
+    try {
+      const res = await fetch(BACKEND_URL + '/stats');
+      if(res.ok) {
+        const data = await res.json();
+        totalPlanetsDB.textContent = data.total_planets || '5000+';
+        confirmedPlanets.textContent = data.confirmed || '5000+';
+      }
+    } catch(e) {
+      console.log('Stats endpoint not available yet');
+      totalPlanetsDB.textContent = '5000+';
+      confirmedPlanets.textContent = '5000+';
+    }
   }
 
   async function requestLocation() {
@@ -855,7 +984,16 @@
     }
   });
 
-  let scene, camera, renderer, dome, stars, markers;
+  let scene, camera, renderer, dome, stars, markers, constellations, nebulae;
+  let modalScene, modalCamera, modalRenderer;
+
+  // Constellation data (simplified major constellations)
+  const constellationData = {
+    'Orion': [[88.79, 7.41], [84.05, -1.20], [83.00, -5.91], [78.63, -8.20], [84.05, -1.20], [85.19, -1.94], [88.79, 7.41]],
+    'Ursa Major': [[165.93, 61.75], [154.27, 49.31], [165.46, 53.69], [178.46, 53.71], [193.51, 54.93], [206.89, 49.01], [194.01, 61.03]],
+    'Cassiopeia': [[14.18, 60.72], [21.45, 60.24], [28.60, 63.67], [35.62, 60.43], [56.71, 60.17]],
+    'Leo': [[152.09, 11.97], [156.52, 14.57], [177.67, 14.84], [177.52, 20.52], [169.62, 23.77], [152.09, 11.97]]
+  };
 
   function initThreeJS() {
     const container = document.getElementById('threeRoot');
@@ -917,14 +1055,45 @@
       }
     });
 
+    // Sky dome
     const domeGeom = new THREE.SphereGeometry(400, 32, 32);
-    const domeMat = new THREE.MeshBasicMaterial({ color: 0x071a2b, side: THREE.BackSide });
+    const domeMat = new THREE.MeshBasicMaterial({ color: 0x020815, side: THREE.BackSide });
     dome = new THREE.Mesh(domeGeom, domeMat);
     scene.add(dome);
 
+    // Nebulae (colorful clouds)
+    nebulae = new THREE.Group();
+    for(let i = 0; i < 8; i++) {
+      const nebulaGeom = new THREE.SphereGeometry(60 + Math.random() * 40, 16, 16);
+      const colors = [0x6e42ff, 0xff426e, 0x42d4ff, 0xff9d42, 0x42ff7a];
+      const nebulaMat = new THREE.MeshBasicMaterial({
+        color: colors[Math.floor(Math.random() * colors.length)],
+        transparent: true,
+        opacity: 0.08,
+        side: THREE.BackSide,
+        blending: THREE.AdditiveBlending
+      });
+      const nebula = new THREE.Mesh(nebulaGeom, nebulaMat);
+      
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.random() * Math.PI;
+      const r = 350;
+      nebula.position.set(
+        r * Math.sin(phi) * Math.cos(theta),
+        r * Math.sin(phi) * Math.sin(theta),
+        r * Math.cos(phi)
+      );
+      
+      nebula.userData.rotate = Math.random() * 0.001;
+      nebulae.add(nebula);
+    }
+    scene.add(nebulae);
+
+    // Stars
     const starsGeom = new THREE.BufferGeometry();
     const starPositions = [];
-    for(let i = 0; i < 1000; i++) {
+    const starColors = [];
+    for(let i = 0; i < 2000; i++) {
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
       const r = 380 + Math.random() * 10;
@@ -933,11 +1102,52 @@
         r * Math.sin(phi) * Math.sin(theta),
         r * Math.cos(phi)
       );
+      
+      const color = Math.random();
+      if(color > 0.9) {
+        starColors.push(0.8, 0.9, 1.0); // Blue
+      } else if(color > 0.8) {
+        starColors.push(1.0, 0.8, 0.6); // Orange
+      } else {
+        starColors.push(1.0, 1.0, 1.0); // White
+      }
     }
     starsGeom.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
-    const starsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 1.5, transparent: true, opacity: 0.7 });
+    starsGeom.setAttribute('color', new THREE.Float32BufferAttribute(starColors, 3));
+    const starsMat = new THREE.PointsMaterial({ 
+      size: 1.8, 
+      transparent: true, 
+      opacity: 0.8,
+      vertexColors: true
+    });
     stars = new THREE.Points(starsGeom, starsMat);
     scene.add(stars);
+
+    // Constellations
+    constellations = new THREE.Group();
+    for(const [name, coords] of Object.entries(constellationData)) {
+      const points = coords.map(([ra, dec]) => {
+        const raRad = ra * Math.PI / 180;
+        const decRad = dec * Math.PI / 180;
+        const r = 390;
+        return new THREE.Vector3(
+          r * Math.cos(decRad) * Math.cos(raRad),
+          r * Math.sin(decRad),
+          -r * Math.cos(decRad) * Math.sin(raRad)
+        );
+      });
+      
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      const material = new THREE.LineBasicMaterial({ 
+        color: 0x6ee7b7, 
+        transparent: true, 
+        opacity: 0.3,
+        linewidth: 2
+      });
+      const line = new THREE.Line(geometry, material);
+      constellations.add(line);
+    }
+    scene.add(constellations);
 
     markers = new THREE.Group();
     scene.add(markers);
@@ -977,7 +1187,10 @@
       if(intersects.length) {
         let obj = intersects[0].object;
         while(obj.parent && !obj.userData.name) obj = obj.parent;
-        if(obj.userData?.name) fetchPlanetInfo(obj.userData.name);
+        if(obj.userData?.name) {
+          zoomToPlanet(obj);
+          fetchPlanetInfo(obj.userData.name);
+        }
       }
     });
 
@@ -988,12 +1201,52 @@
   function animate() {
     requestAnimationFrame(animate);
     if(stars) stars.rotation.y += 0.0001;
+    if(nebulae) {
+      nebulae.children.forEach(n => {
+        n.rotation.y += n.userData.rotate;
+        n.rotation.x += n.userData.rotate * 0.5;
+      });
+    }
     if(markers) {
       markers.children.forEach(m => {
         if(m.userData.animate) m.userData.animate();
       });
     }
     if(renderer && scene && camera) renderer.render(scene, camera);
+  }
+
+  function zoomToPlanet(planetMarker) {
+    const targetPos = planetMarker.position.clone().normalize().multiplyScalar(0.1);
+    const startPos = camera.position.clone();
+    const startRot = { x: camera.rotation.x, y: camera.rotation.y };
+    
+    const targetLookAt = planetMarker.position.clone().normalize();
+    const targetRot = {
+      x: Math.asin(targetLookAt.y),
+      y: Math.atan2(targetLookAt.x, -targetLookAt.z)
+    };
+    
+    let progress = 0;
+    const duration = 1500;
+    const startTime = Date.now();
+    
+    function animateZoom() {
+      const elapsed = Date.now() - startTime;
+      progress = Math.min(elapsed / duration, 1);
+      
+      const eased = 1 - Math.pow(1 - progress, 3);
+      
+      camera.position.lerpVectors(startPos, targetPos, eased);
+      camera.rotation.x = startRot.x + (targetRot.x - startRot.x) * eased;
+      camera.rotation.y = startRot.y + (targetRot.y - startRot.y) * eased;
+      
+      if(progress < 1) {
+        requestAnimationFrame(animateZoom);
+      }
+    }
+    
+    animateZoom();
+    updateStatus(`Zooming to ${planetMarker.userData.name}...`, 'success');
   }
 
   function azAltToVector(azDeg, altDeg) {
@@ -1188,22 +1441,12 @@
     if(planets.length > 0 && camera) {
       const firstPlanet = markers.children[0];
       if(firstPlanet) {
-        const arrowHelper = new THREE.ArrowHelper(
-          firstPlanet.position.clone().normalize(),
-          new THREE.Vector3(0, 0, 0),
-          50, 0xffff00, 10, 5
-        );
-        scene.add(arrowHelper);
-        
-        setTimeout(() => {
-          scene.remove(arrowHelper);
-        }, 5000);
-        
-        camera.lookAt(firstPlanet.position);
-        console.log('Camera centered on first planet');
-        updateStatus(`Found ${planets.length} planet${planets.length > 1 ? 's' : ''}! Yellow arrow points to it.`, 'success');
+        updateStatus(`Found ${planets.length} planet${planets.length > 1 ? 's' : ''}! Click any to zoom.`, 'success');
       }
     }
+    
+    state.sessionDiscovered += planets.length;
+    discoveredToday.textContent = state.sessionDiscovered;
     
     updatePlanetList(planets);
   }
@@ -1242,7 +1485,11 @@
           <div class="planet-distance">${distVal} ly</div>
         </div>
       `;
-      el.onclick = () => fetchPlanetInfo(p.name);
+      el.onclick = () => {
+        const marker = markers.children.find(m => m.userData.name === p.name);
+        if(marker) zoomToPlanet(marker);
+        fetchPlanetInfo(p.name);
+      };
       planetList.appendChild(el);
     });
   }
@@ -1272,7 +1519,8 @@
       longitude: state.lon,
       azimuth: state.az,
       altitude: state.alt,
-      fov: parseFloat(state.fov)
+      fov: parseFloat(state.fov),
+      datetime: state.currentDateTime.toISOString()
     };
     
     console.log('Scan payload:', payload);
@@ -1313,20 +1561,182 @@
     }
   }
 
+  function init3DPlanetPreview(planetData) {
+    planet3DPreview.innerHTML = '';
+    
+    const previewScene = new THREE.Scene();
+    const previewCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
+    previewCamera.position.z = 15;
+    
+    const previewRenderer = new THREE.WebGLRenderer({ 
+      antialias: true, 
+      alpha: true 
+    });
+    previewRenderer.setSize(200, 200);
+    planet3DPreview.appendChild(previewRenderer.domElement);
+    
+    const colors = [0x4a9eff, 0xff6b4a, 0xffd24a, 0x8b4aff, 0x4affbd, 0xff4a9e];
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    
+    const planetGeo = new THREE.SphereGeometry(4, 64, 64);
+    const planetMat = new THREE.MeshPhongMaterial({ 
+      color: color,
+      shininess: 60,
+      emissive: color,
+      emissiveIntensity: 0.2
+    });
+    const planet = new THREE.Mesh(planetGeo, planetMat);
+    previewScene.add(planet);
+    
+    const atmoGeo = new THREE.SphereGeometry(4.5, 32, 32);
+    const atmoMat = new THREE.MeshBasicMaterial({
+      color: color,
+      transparent: true,
+      opacity: 0.2,
+      side: THREE.BackSide
+    });
+    const atmosphere = new THREE.Mesh(atmoGeo, atmoMat);
+    previewScene.add(atmosphere);
+    
+    if(Math.random() > 0.5) {
+      const ringGeo = new THREE.RingGeometry(5, 7, 64);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: 0.4,
+        side: THREE.DoubleSide
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.rotation.x = Math.PI / 2.5;
+      previewScene.add(ring);
+    }
+    
+    const particleGeo = new THREE.BufferGeometry();
+    const particlePositions = [];
+    for(let i = 0; i < 100; i++) {
+      const r = 8 + Math.random() * 4;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.random() * Math.PI;
+      particlePositions.push(
+        r * Math.sin(phi) * Math.cos(theta),
+        r * Math.sin(phi) * Math.sin(theta),
+        r * Math.cos(phi)
+      );
+    }
+    particleGeo.setAttribute('position', new THREE.Float32BufferAttribute(particlePositions, 3));
+    const particleMat = new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 0.2,
+      transparent: true,
+      opacity: 0.6
+    });
+    const particles = new THREE.Points(particleGeo, particleMat);
+    previewScene.add(particles);
+    
+    const light1 = new THREE.PointLight(0xffffff, 1, 100);
+    light1.position.set(10, 10, 10);
+    previewScene.add(light1);
+    
+    const light2 = new THREE.AmbientLight(0x404040);
+    previewScene.add(light2);
+    
+    function animatePreview() {
+      planet.rotation.y += 0.005;
+      atmosphere.rotation.y += 0.003;
+      particles.rotation.y += 0.002;
+      previewRenderer.render(previewScene, previewCamera);
+      requestAnimationFrame(animatePreview);
+    }
+    animatePreview();
+  }
+
   async function fetchPlanetInfo(name) {
     try {
       modalTitle.textContent = name;
-      modalBody.textContent = 'Loading detailed information...';
+      modalBody.innerHTML = '<div style="text-align:center;padding:20px"><span class="spinner" style="width:30px;height:30px"></span><div>Loading detailed information...</div></div>';
       modal.classList.add('show');
+      
+      init3DPlanetPreview({ name });
       
       const res = await fetch(BACKEND_URL + '/exoplanet/info?name=' + encodeURIComponent(name));
       const info = await res.json();
-      modalBody.textContent = JSON.stringify(info, null, 2);
+      
+      const formatValue = (val) => val !== null && val !== undefined ? val : 'Unknown';
+      
+      modalBody.innerHTML = `
+        <div class="planet-info-grid">
+          <div class="info-card">
+            <div class="info-label">Planet Type</div>
+            <div class="info-value">${formatValue(info.planet_type)}</div>
+          </div>
+          <div class="info-card">
+            <div class="info-label">Discovery Year</div>
+            <div class="info-value">${formatValue(info.discovery_year)}</div>
+          </div>
+          <div class="info-card">
+            <div class="info-label">Discovery Method</div>
+            <div class="info-value">${formatValue(info.discovery_method)}</div>
+          </div>
+          <div class="info-card">
+            <div class="info-label">Distance</div>
+            <div class="info-value">${formatValue(info.distance)} ly</div>
+          </div>
+          <div class="info-card">
+            <div class="info-label">Mass</div>
+            <div class="info-value">${formatValue(info.mass)} M⊕</div>
+          </div>
+          <div class="info-card">
+            <div class="info-label">Radius</div>
+            <div class="info-value">${formatValue(info.radius)} R⊕</div>
+          </div>
+          <div class="info-card">
+            <div class="info-label">Orbital Period</div>
+            <div class="info-value">${formatValue(info.orbital_period)} days</div>
+          </div>
+          <div class="info-card">
+            <div class="info-label">Temperature</div>
+            <div class="info-value">${formatValue(info.temperature)} K</div>
+          </div>
+        </div>
+        
+        <div style="margin-top:20px;padding:16px;background:rgba(0,0,0,0.3);border-radius:8px;">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px">HOST STAR</div>
+          <div style="font-size:14px;line-height:1.8">
+            <div><strong>Name:</strong> ${formatValue(info.host_star_name)}</div>
+            <div><strong>Type:</strong> ${formatValue(info.star_type)}</div>
+            <div><strong>Temperature:</strong> ${formatValue(info.star_temp)} K</div>
+            <div><strong>Mass:</strong> ${formatValue(info.star_mass)} M☉</div>
+          </div>
+        </div>
+        
+        <div style="margin-top:16px;padding:12px;background:rgba(110,231,183,0.1);border-left:3px solid var(--accent);border-radius:8px;font-size:13px">
+          <strong>Coordinates:</strong> RA ${formatValue(info.ra)}°, Dec ${formatValue(info.dec)}°
+        </div>
+      `;
+      
     } catch(e) {
       console.error(e);
-      modalBody.textContent = 'Failed to load planet information.';
+      modalBody.innerHTML = '<div style="text-align:center;padding:40px;color:var(--error)">Failed to load planet information. Please try again.</div>';
     }
   }
+
+  // Time travel functions
+  setTimeBtn.addEventListener('click', () => {
+    const selectedDateTime = new Date(dateTimeInput.value);
+    if(!isNaN(selectedDateTime.getTime())) {
+      state.currentDateTime = selectedDateTime;
+      updateStatus(`Time set to ${selectedDateTime.toLocaleString()}`, 'success');
+    } else {
+      updateStatus('Invalid date/time selected', 'error');
+    }
+  });
+
+  resetTimeBtn.addEventListener('click', () => {
+    const now = new Date();
+    state.currentDateTime = now;
+    dateTimeInput.value = now.toISOString().slice(0, 16);
+    updateStatus('Time reset to current', 'success');
+  });
 
   fovInput.addEventListener('input', (e) => {
     state.fov = parseFloat(e.target.value);
